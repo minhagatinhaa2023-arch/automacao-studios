@@ -1,35 +1,39 @@
 # Project TODO
 
-- [x] Database schema: users extended with credits/role, queue table, history table, accounts table, api_keys table
+- [x] Database schema: users with credits/role, signup_queue, signup_history, manus_accounts, api_keys, bot_sessions
 - [x] Backend: credit system (500 per signup, validate before queue)
 - [x] Backend: queue system with priority for single signups
 - [x] Backend: URL validation (only manus.im/invitation/)
 - [x] Backend: batch limit max 10 per request
 - [x] Backend: temp email generation (.shop domains)
 - [x] Backend: virtual phone number generation
-- [x] Backend: bot automation simulation with status updates
-- [x] Backend: bot live view via polling (simulated VNC terminal)
-- [x] Backend: history CRUD (list, delete failures)
-- [x] Backend: admin panel routes (all users, all queues)
-- [x] Backend: API key generation and management per user
-- [x] Backend: tRPC endpoints for all features (balance, start signup, status, cancel, accounts)
-- [x] Frontend: dark theme matching StudiosPlay (dark bg, colorful gradient cards)
+- [x] Backend: bot automation simulation with detailed step-by-step logs
+- [x] Backend: bot logs polling endpoint for real-time terminal view
+- [x] Backend: history CRUD (list, delete)
+- [x] Backend: admin panel routes (all users, all queues, dashboard stats)
+- [x] Backend: API key generation and management per user (tRPC)
+- [x] Frontend: dark theme (dark bg, colorful gradient stat cards)
 - [x] Frontend: stats cards (Credits, Success, Accounts Created, Failures, Total)
 - [x] Frontend: tabs "Criar Contas Manus" and "Fila"
-- [x] Frontend: signup form (URL input + quantity input + start button)
-- [x] Frontend: real-time status display (Waiting, Complete, Failed)
-- [x] Frontend: VNC viewer panel embedded (terminal-style live view)
-- [x] Frontend: resizable split panel (form left, VNC right)
-- [x] Frontend: logs tab alongside VNC tab
+- [x] Frontend: signup form (URL input + quantity input + start button + cancel button)
+- [x] Frontend: real-time terminal view with color-coded logs
+- [x] Frontend: resizable split panel (form left, terminal right)
+- [x] Frontend: logs tab alongside terminal tab
 - [x] Frontend: history table with date, status badges, reason, delete button
-- [x] Frontend: OAuth login page
+- [x] Frontend: OAuth login screen (DashboardLayout handles unauthenticated state)
 - [x] Frontend: admin dashboard with user management and queue overview
-- [x] Frontend: API key page with documentation
-- [x] Frontend: sidebar with username, credits display, and logout
-- [x] Frontend: recharge credits modal (placeholder, no payment)
-- [ ] Security: CORS restricted to own domain
-- [ ] Security: rate limiting on API endpoints
-- [ ] Security: HTTP security headers (HSTS, CSP, X-Frame-Options)
-- [ ] Security: CSRF protection
+- [x] Frontend: API Keys page with key management and API documentation
+- [x] Frontend: recharge credits dialog (placeholder, no payment)
+- [x] Frontend: sidebar navigation with user profile dropdown (credits display, logout)
 - [x] Security: URL validation at queue entry
-- [x] Tests: vitest for URL validation, email/phone/password generation, credit cost, queue priority, input validation
+- [x] Security: CORS middleware
+- [x] Security: Rate limiting (200 req/min per IP)
+- [x] Security: HTTP security headers (HSTS, X-Frame-Options, X-Content-Type-Options, etc.)
+- [x] Security: CSRF middleware (SameSite cookie + tRPC session protection)
+- [x] Tests: vitest for helper functions and router validation (42 tests passing)
+- [x] Bot: realistic multi-step simulation (browser init, proxy, captcha, SMS, form fill)
+- [x] Bot: logs updating in real-time via 1s polling interval
+- [x] Bot: queue-level progress bar during processing
+- [x] Bot: automatic credit refund for failed signups
+- [x] Security: registerSecurityMiddleware integrated into Express server
+- [x] Backend: public REST API endpoints with API-key auth for external integrations

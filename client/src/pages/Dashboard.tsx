@@ -1,6 +1,6 @@
 import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +31,7 @@ import {
   ScrollText,
   Loader2,
   CreditCard,
+  StopCircle,
 } from "lucide-react";
 
 function StatsCards() {
@@ -121,7 +122,9 @@ function RechargeModal({
               key={pkg.credits}
               className="w-full flex items-center justify-between bg-secondary/50 hover:bg-secondary/80 rounded-lg p-4 transition-colors text-left"
               onClick={() => {
-                toast.info("Pagamentos ainda não estão habilitados. Contate o admin para adicionar créditos.");
+                toast.info(
+                  "Pagamentos ainda não estão habilitados. Contate o admin para adicionar créditos."
+                );
                 onClose();
               }}
             >
@@ -137,7 +140,8 @@ function RechargeModal({
         </div>
         <DialogFooter>
           <p className="text-xs text-muted-foreground w-full text-center">
-            Pagamentos serão habilitados em breve. Por enquanto, contate o administrador.
+            Pagamentos serão habilitados em breve. Por enquanto, contate o
+            administrador.
           </p>
         </DialogFooter>
       </DialogContent>
@@ -145,7 +149,15 @@ function RechargeModal({
   );
 }
 
-function SignupForm({ onQueueCreated }: { onQueueCreated: (id: number) => void }) {
+function SignupForm({
+  onQueueCreated,
+  isProcessing,
+  activeQueueId,
+}: {
+  onQueueCreated: (id: number) => void;
+  isProcessing: boolean;
+  activeQueueId: number | null;
+}) {
   const [url, setUrl] = useState("");
   const [quantity, setQuantity] = useState(1);
 
@@ -162,12 +174,27 @@ function SignupForm({ onQueueCreated }: { onQueueCreated: (id: number) => void }
     },
   });
 
+  const cancelMutation = trpc.queue.cancel.useMutation({
+    onSuccess: (data) => {
+      toast.success(data.message);
+      utils.credits.stats.invalidate();
+      utils.queue.list.invalidate();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
   const handleStart = () => {
     if (!url.trim()) {
       toast.error("Insira o link de convite Manus");
       return;
     }
     startMutation.mutate({ inviteUrl: url.trim(), quantity });
+  };
+
+  const handleCancel = () => {
+    if (activeQueueId) {
+      cancelMutation.mutate({ queueId: activeQueueId });
+    }
   };
 
   return (
@@ -181,6 +208,7 @@ function SignupForm({ onQueueCreated }: { onQueueCreated: (id: number) => void }
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           className="bg-secondary/50 border-border"
+          disabled={isProcessing}
         />
       </div>
       <div>
@@ -193,9 +221,12 @@ function SignupForm({ onQueueCreated }: { onQueueCreated: (id: number) => void }
           max={10}
           value={quantity}
           onChange={(e) =>
-            setQuantity(Math.min(10, Math.max(1, parseInt(e.target.value) || 1)))
+            setQuantity(
+              Math.min(10, Math.max(1, parseInt(e.target.value) || 1))
+            )
           }
           className="bg-secondary/50 border-border w-32"
+          disabled={isProcessing}
         />
       </div>
       <div className="text-sm text-muted-foreground">
@@ -205,18 +236,35 @@ function SignupForm({ onQueueCreated }: { onQueueCreated: (id: number) => void }
         </span>{" "}
         créditos
       </div>
-      <Button
-        onClick={handleStart}
-        disabled={startMutation.isPending}
-        className="bg-primary hover:bg-primary/90"
-      >
-        {startMutation.isPending ? (
-          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-        ) : (
-          <Play className="h-4 w-4 mr-2" />
+      <div className="flex items-center gap-3">
+        <Button
+          onClick={handleStart}
+          disabled={startMutation.isPending || isProcessing}
+          className="bg-primary hover:bg-primary/90"
+        >
+          {startMutation.isPending ? (
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            <Play className="h-4 w-4 mr-2" />
+          )}
+          {isProcessing ? "Bot em execução..." : "Iniciar Cadastro"}
+        </Button>
+        {isProcessing && activeQueueId && (
+          <Button
+            variant="destructive"
+            onClick={handleCancel}
+            disabled={cancelMutation.isPending}
+            size="sm"
+          >
+            {cancelMutation.isPending ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <StopCircle className="h-4 w-4 mr-2" />
+            )}
+            Cancelar
+          </Button>
         )}
-        Iniciar Cadastro
-      </Button>
+      </div>
     </div>
   );
 }
@@ -224,14 +272,20 @@ function SignupForm({ onQueueCreated }: { onQueueCreated: (id: number) => void }
 function BotViewer({ queueId }: { queueId: number | null }) {
   const { data: botLogs } = trpc.history.botLogs.useQuery(
     { queueId: queueId ?? 0 },
-    { enabled: !!queueId, refetchInterval: 1500 }
+    { enabled: !!queueId, refetchInterval: 1000 }
   );
 
   const logsEndRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
+  // Auto-scroll to bottom when new logs arrive
   useEffect(() => {
-    logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [botLogs?.logs]);
+    if (containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    }
+  }, [botLogs?.logs?.length]);
+
+  const logLines = useMemo(() => botLogs?.logs ?? [], [botLogs?.logs]);
 
   if (!queueId) {
     return (
@@ -252,7 +306,7 @@ function BotViewer({ queueId }: { queueId: number | null }) {
       <TabsList className="bg-secondary/50 shrink-0">
         <TabsTrigger value="vnc" className="gap-1.5">
           <Monitor className="h-3.5 w-3.5" />
-          VNC
+          Terminal
         </TabsTrigger>
         <TabsTrigger value="logs" className="gap-1.5">
           <ScrollText className="h-3.5 w-3.5" />
@@ -261,73 +315,72 @@ function BotViewer({ queueId }: { queueId: number | null }) {
       </TabsList>
       <TabsContent value="vnc" className="flex-1 mt-2">
         <div className="vnc-viewer rounded-xl h-full min-h-[400px] relative overflow-hidden">
-          <div className="absolute inset-0 bg-black p-4 font-mono text-xs text-green-400 overflow-auto">
-            <div className="mb-2 text-green-600">
-              ╔══════════════════════════════════════════════╗
-            </div>
-            <div className="text-green-600">
-              ║ Automação Studios - Bot VNC Viewer
-              &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;║
-            </div>
-            <div className="mb-3 text-green-600">
-              ╚══════════════════════════════════════════════╝
-            </div>
-            {botLogs?.logs?.map((log, i) => (
-              <div key={i} className="py-0.5">
-                <span className="text-green-600/60">
-                  [{new Date().toLocaleTimeString()}]
-                </span>{" "}
-                <span
-                  className={
-                    log.includes("✓")
-                      ? "text-green-400"
-                      : log.includes("✗")
-                      ? "text-red-400"
-                      : "text-green-300"
-                  }
-                >
-                  {log}
-                </span>
-              </div>
-            ))}
+          <div
+            ref={containerRef}
+            className="absolute inset-0 bg-black p-4 font-mono text-xs text-green-400 overflow-auto"
+            style={{ fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace" }}
+          >
+            {logLines.map((log: string, i: number) => {
+              // Color coding based on content
+              let textClass = "text-green-300";
+              if (log.includes("✓")) textClass = "text-green-400 font-medium";
+              else if (log.includes("✗")) textClass = "text-red-400 font-medium";
+              else if (log.includes("⚠")) textClass = "text-yellow-400";
+              else if (log.includes("═") || log.includes("───")) textClass = "text-cyan-600";
+              else if (log.includes("BOT AUTOMAÇÃO") || log.includes("RESUMO FINAL")) textClass = "text-cyan-400 font-bold";
+              else if (log.includes("▶ CONTA")) textClass = "text-yellow-300 font-semibold";
+              else if (log.includes("→")) textClass = "text-green-300/70";
+              else if (log.includes("Aguardando")) textClass = "text-yellow-300/80";
+
+              return (
+                <div key={i} className="py-0.5 leading-relaxed">
+                  <span className={textClass}>{log}</span>
+                </div>
+              );
+            })}
             {botLogs?.status === "running" && (
               <div className="py-0.5 animate-pulse">
-                <span className="text-green-600/60">
-                  [{new Date().toLocaleTimeString()}]
-                </span>{" "}
                 <span className="text-yellow-400">
                   {botLogs?.currentStep ?? "Processando..."}
                 </span>
+                <span className="text-green-600 ml-1 animate-pulse">█</span>
               </div>
             )}
             <div ref={logsEndRef} />
           </div>
-          <div className="absolute bottom-0 left-0 right-0 bg-secondary/80 backdrop-blur px-3 py-1.5 flex items-center justify-between text-xs">
-            <div className="flex items-center gap-2">
-              <div
-                className={`h-2 w-2 rounded-full ${
-                  botLogs?.status === "running"
-                    ? "bg-green-500 animate-pulse"
+          {/* Status bar */}
+          <div className="absolute bottom-0 left-0 right-0 bg-gray-900/95 backdrop-blur border-t border-green-900/30 px-3 py-1.5 flex items-center justify-between text-xs font-mono">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5">
+                <div
+                  className={`h-2 w-2 rounded-full ${
+                    botLogs?.status === "running"
+                      ? "bg-green-500 animate-pulse"
+                      : botLogs?.status === "completed"
+                      ? "bg-blue-500"
+                      : "bg-yellow-500"
+                  }`}
+                />
+                <span className="text-gray-400">
+                  {botLogs?.status === "running"
+                    ? "BOT ATIVO"
                     : botLogs?.status === "completed"
-                    ? "bg-blue-500"
-                    : "bg-yellow-500"
-                }`}
-              />
-              <span className="text-muted-foreground">
-                {botLogs?.status === "running"
-                  ? "Bot ativo"
-                  : botLogs?.status === "completed"
-                  ? "Concluído"
-                  : "Aguardando"}
+                    ? "CONCLUÍDO"
+                    : "AGUARDANDO"}
+                </span>
+              </div>
+              <span className="text-gray-600">|</span>
+              <span className="text-gray-500">
+                Logs: {logLines.length}
               </span>
             </div>
-            <span className="text-muted-foreground">Queue #{queueId}</span>
+            <span className="text-gray-500">Queue #{queueId}</span>
           </div>
         </div>
       </TabsContent>
       <TabsContent value="logs" className="flex-1 mt-2">
         <div className="bg-card rounded-xl border border-border h-full min-h-[400px] overflow-auto p-4 terminal-log">
-          {botLogs?.logs?.map((log, i) => (
+          {logLines.map((log: string, i: number) => (
             <div key={i} className="py-0.5 text-sm">
               <span className="text-muted-foreground mr-2">
                 [{String(i + 1).padStart(3, "0")}]
@@ -338,6 +391,8 @@ function BotViewer({ queueId }: { queueId: number | null }) {
                     ? "text-green-400"
                     : log.includes("✗")
                     ? "text-red-400"
+                    : log.includes("⚠")
+                    ? "text-yellow-400"
                     : "text-foreground"
                 }
               >
@@ -345,19 +400,22 @@ function BotViewer({ queueId }: { queueId: number | null }) {
               </span>
             </div>
           ))}
-          {(!botLogs?.logs || botLogs.logs.length === 0) && (
+          {logLines.length === 0 && (
             <div className="text-muted-foreground text-center mt-20">
               Nenhum log disponível
             </div>
           )}
-          <div ref={logsEndRef} />
         </div>
       </TabsContent>
     </Tabs>
   );
 }
 
-function QueueList({ onSelectQueue }: { onSelectQueue: (id: number) => void }) {
+function QueueList({
+  onSelectQueue,
+}: {
+  onSelectQueue: (id: number) => void;
+}) {
   const { data: queueItems, isLoading } = trpc.queue.list.useQuery(undefined, {
     refetchInterval: 3000,
   });
@@ -375,7 +433,10 @@ function QueueList({ onSelectQueue }: { onSelectQueue: (id: number) => void }) {
   const statusBadge = (status: string) => {
     const variants: Record<
       string,
-      { variant: "default" | "secondary" | "destructive" | "outline"; label: string }
+      {
+        variant: "default" | "secondary" | "destructive" | "outline";
+        label: string;
+      }
     > = {
       pending: { variant: "secondary", label: "Pendente" },
       processing: { variant: "default", label: "Processando" },
@@ -399,7 +460,7 @@ function QueueList({ onSelectQueue }: { onSelectQueue: (id: number) => void }) {
   if (!queueItems?.length) {
     return (
       <div className="text-muted-foreground text-sm text-center py-8">
-        Nenhum item na fila
+        Nenhum item na fila. Inicie um cadastro para começar.
       </div>
     );
   }
@@ -421,7 +482,7 @@ function QueueList({ onSelectQueue }: { onSelectQueue: (id: number) => void }) {
               <span className="text-xs text-muted-foreground">
                 {new Date(item.createdAt).toLocaleString("pt-BR")}
               </span>
-              {item.status === "pending" && (
+              {(item.status === "pending" || item.status === "processing") && (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -448,7 +509,7 @@ function QueueList({ onSelectQueue }: { onSelectQueue: (id: number) => void }) {
           </div>
           {item.status === "processing" && (
             <Progress
-              value={(item.processed / item.quantity) * 100}
+              value={((item.processed + item.failed) / item.quantity) * 100}
               className="mt-2 h-1.5"
             />
           )}
@@ -466,12 +527,19 @@ export default function Dashboard() {
     refetchInterval: 3000,
   });
 
+  // Auto-select the currently processing queue item
+  const processingItem = useMemo(
+    () => queueItems?.find((q) => q.status === "processing"),
+    [queueItems]
+  );
+
   useEffect(() => {
-    const processing = queueItems?.find((q) => q.status === "processing");
-    if (processing) {
-      setActiveQueueId(processing.id);
+    if (processingItem) {
+      setActiveQueueId(processingItem.id);
     }
-  }, [queueItems]);
+  }, [processingItem]);
+
+  const isProcessing = !!processingItem;
 
   return (
     <DashboardLayout>
@@ -509,16 +577,20 @@ export default function Dashboard() {
               direction="horizontal"
               className="min-h-[500px] rounded-xl border border-border"
             >
-              <ResizablePanel defaultSize={40} minSize={30}>
+              <ResizablePanel defaultSize={35} minSize={25}>
                 <div className="p-6 h-full">
                   <h2 className="text-lg font-semibold mb-4">
                     Novo Cadastro Automatizado
                   </h2>
-                  <SignupForm onQueueCreated={setActiveQueueId} />
+                  <SignupForm
+                    onQueueCreated={setActiveQueueId}
+                    isProcessing={isProcessing}
+                    activeQueueId={activeQueueId}
+                  />
                 </div>
               </ResizablePanel>
               <ResizableHandle withHandle />
-              <ResizablePanel defaultSize={60} minSize={30}>
+              <ResizablePanel defaultSize={65} minSize={35}>
                 <div className="p-4 h-full">
                   <h2 className="text-lg font-semibold mb-4">
                     Bot em Tempo Real
@@ -540,7 +612,10 @@ export default function Dashboard() {
         </Tabs>
       </div>
 
-      <RechargeModal open={showRecharge} onClose={() => setShowRecharge(false)} />
+      <RechargeModal
+        open={showRecharge}
+        onClose={() => setShowRecharge(false)}
+      />
     </DashboardLayout>
   );
 }

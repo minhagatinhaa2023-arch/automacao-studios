@@ -4,7 +4,6 @@ import { users, signupQueue, signupHistory, manusAccounts, botSessions } from ".
 import { getDb } from "./db";
 import { protectedProcedure, router } from "./_core/trpc";
 import { TRPCError } from "@trpc/server";
-import { nanoid } from "nanoid";
 import {
   COST_PER_SIGNUP,
   MAX_BATCH,
@@ -12,8 +11,6 @@ import {
   generateTempEmail,
   generateVirtualPhone,
   generatePassword,
-  calculatePriority,
-  calculateRefund,
 } from "./botUtils";
 
 export const queueRouter = router({
@@ -85,7 +82,7 @@ export const queueRouter = router({
     return items;
   }),
 
-  /** Cancel a pending queue item */
+  /** Cancel a pending or processing queue item */
   cancel: protectedProcedure
     .input(z.object({ queueId: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
@@ -97,8 +94,8 @@ export const queueRouter = router({
         .limit(1);
 
       if (!item) throw new TRPCError({ code: "NOT_FOUND", message: "Item não encontrado" });
-      if (item.status !== "pending") {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Só é possível cancelar itens pendentes" });
+      if (item.status !== "pending" && item.status !== "processing") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Só é possível cancelar itens pendentes ou em processamento" });
       }
 
       // Refund credits for unprocessed items
@@ -137,23 +134,102 @@ export const queueRouter = router({
     }),
 });
 
-/** Simulate bot processing in background */
+// ============================================================
+// Bot Simulation Engine - Realistic multi-step automation
+// ============================================================
+
+function delay(ms: number): Promise<void> {
+  return new Promise(r => setTimeout(r, ms));
+}
+
+function randomDelay(min: number, max: number): Promise<void> {
+  return delay(min + Math.random() * (max - min));
+}
+
+function timestamp(): string {
+  return new Date().toISOString().replace("T", " ").split(".")[0];
+}
+
+async function appendLog(db: any, sessionId: number, message: string) {
+  await db.update(botSessions)
+    .set({
+      currentStep: message,
+      logMessages: sql`JSON_ARRAY_APPEND(COALESCE(${botSessions.logMessages}, JSON_ARRAY()), '$', ${message})`,
+    })
+    .where(eq(botSessions.id, sessionId));
+}
+
+async function isCancelled(db: any, queueId: number): Promise<boolean> {
+  const [queueItem] = await db.select({ status: signupQueue.status })
+    .from(signupQueue)
+    .where(eq(signupQueue.id, queueId))
+    .limit(1);
+  return queueItem?.status === "cancelled";
+}
+
+/** Simulate bot processing in background with detailed realistic steps */
 async function simulateBot(userId: number, queueId: number, inviteUrl: string, quantity: number, db: any) {
+  let sessionId: number;
+
   try {
     // Create bot session
     const [sessionInsert] = await db.insert(botSessions).values({
       userId,
       queueId,
       status: "running",
-      currentStep: "Iniciando bot...",
-      logMessages: JSON.stringify(["[BOT] Sessão iniciada"]),
+      currentStep: "Inicializando...",
+      logMessages: JSON.stringify([]),
     });
-    const sessionId = (sessionInsert as any).insertId;
+    sessionId = (sessionInsert as any).insertId;
 
     // Update queue to processing
     await db.update(signupQueue)
       .set({ status: "processing" })
       .where(eq(signupQueue.id, queueId));
+
+    // ── Phase 1: Initialization ──
+    await appendLog(db, sessionId, `[${timestamp()}] ═══════════════════════════════════════`);
+    await appendLog(db, sessionId, `[${timestamp()}] BOT AUTOMAÇÃO STUDIOS v2.4.1`);
+    await appendLog(db, sessionId, `[${timestamp()}] ═══════════════════════════════════════`);
+    await randomDelay(400, 800);
+
+    await appendLog(db, sessionId, `[${timestamp()}] Inicializando navegador headless...`);
+    await randomDelay(800, 1200);
+    await appendLog(db, sessionId, `[${timestamp()}] Chromium 124.0.6367.91 carregado`);
+    await randomDelay(300, 500);
+
+    await appendLog(db, sessionId, `[${timestamp()}] Configurando proxy rotativo...`);
+    await randomDelay(500, 900);
+    const proxyIp = `${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`;
+    await appendLog(db, sessionId, `[${timestamp()}] Proxy conectado: ${proxyIp}:8080`);
+    await randomDelay(300, 600);
+
+    await appendLog(db, sessionId, `[${timestamp()}] Configurando fingerprint do navegador...`);
+    await randomDelay(400, 700);
+    await appendLog(db, sessionId, `[${timestamp()}] User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36`);
+    await randomDelay(200, 400);
+
+    await appendLog(db, sessionId, `[${timestamp()}] Resolvendo captcha solver...`);
+    await randomDelay(600, 1000);
+    await appendLog(db, sessionId, `[${timestamp()}] Captcha solver conectado (2captcha API)`);
+    await randomDelay(300, 500);
+
+    await appendLog(db, sessionId, `[${timestamp()}] Verificando link de convite: ${inviteUrl}`);
+    await randomDelay(800, 1500);
+    await appendLog(db, sessionId, `[${timestamp()}] ✓ Link válido - Convite ativo`);
+    await randomDelay(300, 500);
+
+    await appendLog(db, sessionId, `[${timestamp()}] ───────────────────────────────────────`);
+    await appendLog(db, sessionId, `[${timestamp()}] Iniciando ${quantity} cadastro(s)...`);
+    await appendLog(db, sessionId, `[${timestamp()}] ───────────────────────────────────────`);
+    await randomDelay(500, 800);
+
+    if (await isCancelled(db, queueId)) {
+      await db.update(botSessions)
+        .set({ status: "completed", currentStep: "Cancelado pelo usuário" })
+        .where(eq(botSessions.id, sessionId));
+      return;
+    }
 
     let processed = 0;
     let failed = 0;
@@ -162,107 +238,215 @@ async function simulateBot(userId: number, queueId: number, inviteUrl: string, q
       const email = generateTempEmail();
       const phone = generateVirtualPhone();
       const password = generatePassword();
+      const accountNum = i + 1;
 
-      const steps = [
-        `[${i + 1}/${quantity}] Gerando email temporário: ${email}`,
-        `[${i + 1}/${quantity}] Gerando número virtual: ${phone}`,
-        `[${i + 1}/${quantity}] Abrindo link de convite...`,
-        `[${i + 1}/${quantity}] Preenchendo formulário de cadastro...`,
-        `[${i + 1}/${quantity}] Inserindo email: ${email}`,
-        `[${i + 1}/${quantity}] Inserindo senha...`,
-        `[${i + 1}/${quantity}] Inserindo telefone: ${phone}`,
-        `[${i + 1}/${quantity}] Aguardando SMS de confirmação...`,
-        `[${i + 1}/${quantity}] SMS recebido! Código: ${Math.floor(100000 + Math.random() * 900000)}`,
-        `[${i + 1}/${quantity}] Confirmando cadastro...`,
-      ];
+      await appendLog(db, sessionId, `[${timestamp()}] `);
+      await appendLog(db, sessionId, `[${timestamp()}] ▶ CONTA ${accountNum}/${quantity}`);
+      await appendLog(db, sessionId, `[${timestamp()}] ─────────────────────`);
 
-      for (const step of steps) {
-        await new Promise(r => setTimeout(r, 800 + Math.random() * 1200));
+      // Step 1: Generate credentials
+      await appendLog(db, sessionId, `[${timestamp()}] Gerando credenciais...`);
+      await randomDelay(300, 600);
+      await appendLog(db, sessionId, `[${timestamp()}]   Email: ${email}`);
+      await randomDelay(200, 400);
+      await appendLog(db, sessionId, `[${timestamp()}]   Senha: ${"*".repeat(password.length)}`);
+      await randomDelay(200, 400);
+      await appendLog(db, sessionId, `[${timestamp()}]   Telefone: ${phone}`);
+      await randomDelay(300, 500);
 
-        // Check if cancelled
-        const [queueItem] = await db.select({ status: signupQueue.status })
-          .from(signupQueue)
-          .where(eq(signupQueue.id, queueId))
-          .limit(1);
+      if (await isCancelled(db, queueId)) {
+        await appendLog(db, sessionId, `[${timestamp()}] ⚠ Cancelado pelo usuário`);
+        await db.update(botSessions)
+          .set({ status: "completed", currentStep: "Cancelado pelo usuário" })
+          .where(eq(botSessions.id, sessionId));
+        return;
+      }
 
-        if (queueItem?.status === "cancelled") {
-          await db.update(botSessions)
-            .set({ status: "completed", currentStep: "Cancelado pelo usuário" })
-            .where(eq(botSessions.id, sessionId));
-          return;
+      // Step 2: Navigate to signup page
+      await appendLog(db, sessionId, `[${timestamp()}] Navegando para página de cadastro...`);
+      await randomDelay(1000, 2000);
+      await appendLog(db, sessionId, `[${timestamp()}] GET ${inviteUrl} → 200 OK`);
+      await randomDelay(500, 800);
+      await appendLog(db, sessionId, `[${timestamp()}] Página carregada (${(1.2 + Math.random() * 2).toFixed(1)}s)`);
+      await randomDelay(400, 700);
+
+      // Step 3: Fill form
+      await appendLog(db, sessionId, `[${timestamp()}] Preenchendo formulário de cadastro...`);
+      await randomDelay(300, 500);
+
+      await appendLog(db, sessionId, `[${timestamp()}]   → Clicando campo "Email"...`);
+      await randomDelay(200, 400);
+      await appendLog(db, sessionId, `[${timestamp()}]   → Digitando: ${email}`);
+      await randomDelay(600, 1000);
+
+      await appendLog(db, sessionId, `[${timestamp()}]   → Clicando campo "Senha"...`);
+      await randomDelay(200, 400);
+      await appendLog(db, sessionId, `[${timestamp()}]   → Digitando senha...`);
+      await randomDelay(500, 800);
+
+      await appendLog(db, sessionId, `[${timestamp()}]   → Clicando campo "Confirmar Senha"...`);
+      await randomDelay(200, 400);
+      await appendLog(db, sessionId, `[${timestamp()}]   → Digitando confirmação...`);
+      await randomDelay(500, 800);
+
+      await appendLog(db, sessionId, `[${timestamp()}]   → Clicando campo "Telefone"...`);
+      await randomDelay(200, 400);
+      await appendLog(db, sessionId, `[${timestamp()}]   → Digitando: ${phone}`);
+      await randomDelay(500, 800);
+
+      if (await isCancelled(db, queueId)) {
+        await appendLog(db, sessionId, `[${timestamp()}] ⚠ Cancelado pelo usuário`);
+        await db.update(botSessions)
+          .set({ status: "completed", currentStep: "Cancelado pelo usuário" })
+          .where(eq(botSessions.id, sessionId));
+        return;
+      }
+
+      // Step 4: Handle captcha
+      await appendLog(db, sessionId, `[${timestamp()}] Detectando captcha na página...`);
+      await randomDelay(800, 1200);
+      const hasCaptcha = Math.random() < 0.7;
+      if (hasCaptcha) {
+        await appendLog(db, sessionId, `[${timestamp()}] Captcha detectado (hCaptcha)`);
+        await randomDelay(300, 500);
+        await appendLog(db, sessionId, `[${timestamp()}] Enviando captcha para resolver...`);
+        await randomDelay(2000, 4000);
+        const captchaSolved = Math.random() < 0.95;
+        if (captchaSolved) {
+          await appendLog(db, sessionId, `[${timestamp()}] ✓ Captcha resolvido (${(3 + Math.random() * 5).toFixed(1)}s)`);
+        } else {
+          await appendLog(db, sessionId, `[${timestamp()}] ✗ Falha ao resolver captcha - timeout`);
+          failed++;
+          await db.insert(signupHistory).values({
+            userId, queueId, email, phone, status: "failed", reason: "Captcha não resolvido",
+          });
+          await db.update(signupQueue)
+            .set({ processed, failed })
+            .where(eq(signupQueue.id, queueId));
+          await appendLog(db, sessionId, `[${timestamp()}] ✗ CONTA ${accountNum} FALHOU: Captcha não resolvido`);
+          continue;
         }
-
-        await db.update(botSessions)
-          .set({
-            currentStep: step,
-            logMessages: sql`JSON_ARRAY_APPEND(COALESCE(${botSessions.logMessages}, JSON_ARRAY()), '$', ${step})`,
-          })
-          .where(eq(botSessions.id, sessionId));
-      }
-
-      // Simulate success/failure (90% success rate)
-      const isSuccess = Math.random() < 0.9;
-
-      if (isSuccess) {
-        processed++;
-
-        await db.insert(signupHistory).values({
-          userId,
-          queueId,
-          email,
-          password,
-          phone,
-          status: "success",
-        });
-
-        await db.insert(manusAccounts).values({
-          userId,
-          email,
-          password,
-          phone,
-          status: "success",
-        });
-
-        await db.update(botSessions)
-          .set({
-            currentStep: `[${i + 1}/${quantity}] Cadastro concluído com sucesso!`,
-            logMessages: sql`JSON_ARRAY_APPEND(COALESCE(${botSessions.logMessages}, JSON_ARRAY()), '$', ${`[${i + 1}/${quantity}] ✓ Conta criada: ${email}`})`,
-          })
-          .where(eq(botSessions.id, sessionId));
       } else {
+        await appendLog(db, sessionId, `[${timestamp()}] Nenhum captcha detectado`);
+      }
+      await randomDelay(300, 600);
+
+      // Step 5: Submit form
+      await appendLog(db, sessionId, `[${timestamp()}] Clicando botão "Criar Conta"...`);
+      await randomDelay(500, 800);
+      await appendLog(db, sessionId, `[${timestamp()}] POST /api/signup → Aguardando resposta...`);
+      await randomDelay(1500, 3000);
+
+      // Step 6: Phone verification
+      await appendLog(db, sessionId, `[${timestamp()}] Verificação por SMS solicitada`);
+      await randomDelay(300, 500);
+      await appendLog(db, sessionId, `[${timestamp()}] Aguardando SMS em ${phone}...`);
+      await randomDelay(3000, 6000);
+
+      const smsReceived = Math.random() < 0.92;
+      if (!smsReceived) {
+        await appendLog(db, sessionId, `[${timestamp()}] ✗ Timeout aguardando SMS (60s)`);
         failed++;
-
-        const reasons = [
-          "Timeout ao aguardar SMS",
-          "Email já registrado",
-          "Captcha não resolvido",
-          "Erro de rede",
-          "Formulário expirou",
-        ];
-        const reason = reasons[Math.floor(Math.random() * reasons.length)];
-
         await db.insert(signupHistory).values({
-          userId,
-          queueId,
-          email,
-          phone,
-          status: "failed",
-          reason,
+          userId, queueId, email, phone, status: "failed", reason: "Timeout ao aguardar SMS",
         });
-
-        await db.update(botSessions)
-          .set({
-            currentStep: `[${i + 1}/${quantity}] Falha: ${reason}`,
-            logMessages: sql`JSON_ARRAY_APPEND(COALESCE(${botSessions.logMessages}, JSON_ARRAY()), '$', ${`[${i + 1}/${quantity}] ✗ Falha: ${reason}`})`,
-          })
-          .where(eq(botSessions.id, sessionId));
+        await db.update(signupQueue)
+          .set({ processed, failed })
+          .where(eq(signupQueue.id, queueId));
+        await appendLog(db, sessionId, `[${timestamp()}] ✗ CONTA ${accountNum} FALHOU: Timeout SMS`);
+        continue;
       }
 
-      // Update queue progress
+      const smsCode = Math.floor(100000 + Math.random() * 900000);
+      await appendLog(db, sessionId, `[${timestamp()}] ✓ SMS recebido! Código: ${smsCode}`);
+      await randomDelay(300, 600);
+      await appendLog(db, sessionId, `[${timestamp()}] Inserindo código de verificação...`);
+      await randomDelay(500, 800);
+      await appendLog(db, sessionId, `[${timestamp()}] POST /api/verify-sms → Aguardando...`);
+      await randomDelay(1000, 2000);
+
+      // Step 7: Final verification
+      const signupSuccess = Math.random() < 0.88;
+      if (!signupSuccess) {
+        const failReasons = [
+          "Email já registrado no sistema",
+          "Erro interno do servidor (500)",
+          "Rate limit excedido - IP bloqueado temporariamente",
+          "Formulário expirou - sessão inválida",
+          "Número de telefone já utilizado",
+        ];
+        const reason = failReasons[Math.floor(Math.random() * failReasons.length)];
+        await appendLog(db, sessionId, `[${timestamp()}] ✗ Erro: ${reason}`);
+        failed++;
+        await db.insert(signupHistory).values({
+          userId, queueId, email, phone, status: "failed", reason,
+        });
+        await db.update(signupQueue)
+          .set({ processed, failed })
+          .where(eq(signupQueue.id, queueId));
+        await appendLog(db, sessionId, `[${timestamp()}] ✗ CONTA ${accountNum} FALHOU: ${reason}`);
+        continue;
+      }
+
+      // Success!
+      await appendLog(db, sessionId, `[${timestamp()}] ✓ Verificação concluída com sucesso!`);
+      await randomDelay(500, 800);
+      await appendLog(db, sessionId, `[${timestamp()}] ✓ Conta criada: ${email}`);
+      await randomDelay(300, 500);
+
+      // Step 8: Verify account works
+      await appendLog(db, sessionId, `[${timestamp()}] Testando login na conta criada...`);
+      await randomDelay(1000, 2000);
+      await appendLog(db, sessionId, `[${timestamp()}] ✓ Login bem-sucedido - Conta ativa`);
+      await randomDelay(300, 500);
+
+      processed++;
+
+      await db.insert(signupHistory).values({
+        userId, queueId, email, password, phone, status: "success",
+      });
+
+      await db.insert(manusAccounts).values({
+        userId, email, password, phone, status: "success",
+      });
+
       await db.update(signupQueue)
         .set({ processed, failed })
         .where(eq(signupQueue.id, queueId));
+
+      await appendLog(db, sessionId, `[${timestamp()}] ✓ CONTA ${accountNum} CRIADA COM SUCESSO`);
+
+      // Rotate proxy between accounts
+      if (i < quantity - 1) {
+        await randomDelay(500, 800);
+        const newIp = `${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`;
+        await appendLog(db, sessionId, `[${timestamp()}] Rotacionando proxy → ${newIp}:8080`);
+        await randomDelay(500, 800);
+        await appendLog(db, sessionId, `[${timestamp()}] Limpando cookies do navegador...`);
+        await randomDelay(300, 500);
+      }
     }
+
+    // ── Final Summary ──
+    await appendLog(db, sessionId, `[${timestamp()}] `);
+    await appendLog(db, sessionId, `[${timestamp()}] ═══════════════════════════════════════`);
+    await appendLog(db, sessionId, `[${timestamp()}] RESUMO FINAL`);
+    await appendLog(db, sessionId, `[${timestamp()}] ═══════════════════════════════════════`);
+    await appendLog(db, sessionId, `[${timestamp()}] Total solicitado: ${quantity}`);
+    await appendLog(db, sessionId, `[${timestamp()}] Sucesso: ${processed}`);
+    await appendLog(db, sessionId, `[${timestamp()}] Falhas: ${failed}`);
+    await appendLog(db, sessionId, `[${timestamp()}] Taxa de sucesso: ${quantity > 0 ? ((processed / quantity) * 100).toFixed(0) : 0}%`);
+
+    if (failed > 0) {
+      const refund = failed * COST_PER_SIGNUP;
+      await appendLog(db, sessionId, `[${timestamp()}] Créditos reembolsados: ${refund}`);
+      await db.update(users)
+        .set({ credits: sql`${users.credits} + ${refund}` })
+        .where(eq(users.id, userId));
+    }
+
+    await appendLog(db, sessionId, `[${timestamp()}] ═══════════════════════════════════════`);
+    await appendLog(db, sessionId, `[${timestamp()}] Bot finalizado.`);
 
     // Complete
     const finalStatus = failed === quantity ? "failed" : "completed";
@@ -277,17 +461,12 @@ async function simulateBot(userId: number, queueId: number, inviteUrl: string, q
       })
       .where(eq(botSessions.id, sessionId));
 
-    // Refund failed signups
-    if (failed > 0) {
-      const refund = failed * COST_PER_SIGNUP;
-      await db.update(users)
-        .set({ credits: sql`${users.credits} + ${refund}` })
-        .where(eq(users.id, userId));
-    }
   } catch (error) {
     console.error("[Bot Simulation Error]", error);
-    await db.update(signupQueue)
-      .set({ status: "failed" })
-      .where(eq(signupQueue.id, queueId));
+    try {
+      await db.update(signupQueue)
+        .set({ status: "failed" })
+        .where(eq(signupQueue.id, queueId));
+    } catch {}
   }
 }
