@@ -52,3 +52,19 @@
 - [x] Automação real: completa cadastro e insere código de verificação
 - [x] Frontend: terminal mostra progresso real do bot em tempo real
 - [x] Configurar secrets: nenhuma API key necessária (tudo gratuito)
+- [x] Bug: bot real dando falha - corrigido import ESM + Puppeteer padrão
+- [x] Integrar API de SMS virtual (5sim.net) para receber códigos SMS
+- [x] Bot real com Puppeteer: navegar link convite, preencher email, resolver Turnstile, receber SMS, inserir código
+- [x] VNC live view: screenshots do navegador Puppeteer em tempo real via S3
+- [x] Frontend: "Computador Automação Studios" com VNC live view (estilo StudiosPlay)
+- [x] Configurar secrets: FIVESIM_API_KEY configurada e validada (43 testes passando)
+- [x] Testar fluxo real do bot no sandbox: Puppeteer+mail.tm+5sim validados E2E
+- [x] Validar captura de screenshot: 34KB JPEG capturado com sucesso via Puppeteer
+- [x] Adicionar fallback quando ambiente não suporta Puppeteer/Chromium
+- [x] Anti-detecção: randomizar fingerprint do navegador (WebGL, Canvas, AudioContext)
+- [x] Anti-detecção: humanizar timing de digitação e cliques (delays aleatórios, movimentos de mouse)
+- [x] Anti-detecção: randomizar user-agent, viewport, timezone, idioma
+- [x] Anti-detecção: adicionar movimentos de mouse naturais antes de cada ação
+- [x] Anti-detecção: variar padrão de navegação (scroll, hover, focus/blur)
+- [x] Integrar fluxo completo testado no realBot.ts (email→turnstile→senha→código email→phone→SMS)
+- [x] Limpar arquivos de teste temporários

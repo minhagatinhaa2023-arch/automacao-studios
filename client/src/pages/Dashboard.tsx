@@ -32,6 +32,7 @@ import {
   Loader2,
   CreditCard,
   StopCircle,
+  Eye,
 } from "lucide-react";
 
 function StatsCards() {
@@ -277,77 +278,163 @@ function BotViewer({ queueId }: { queueId: number | null }) {
 
   const logsEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [activeTab, setActiveTab] = useState("computador");
 
   // Auto-scroll to bottom when new logs arrive
   useEffect(() => {
-    if (containerRef.current) {
+    if (containerRef.current && activeTab === "logs") {
       containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }
-  }, [botLogs?.logs?.length]);
+  }, [botLogs?.logs?.length, activeTab]);
 
   const logLines = useMemo(() => botLogs?.logs ?? [], [botLogs?.logs]);
+  const screenshotUrl = (botLogs as any)?.screenshotUrl || null;
 
   if (!queueId) {
     return (
-      <div className="vnc-viewer rounded-xl h-full min-h-[400px] flex items-center justify-center">
-        <div className="text-center text-muted-foreground">
-          <Monitor className="h-12 w-12 mx-auto mb-3 opacity-40" />
-          <p>Nenhum bot ativo</p>
-          <p className="text-xs mt-1">
+      <div className="rounded-xl h-full min-h-[400px] bg-black border-2 border-green-900/30 flex items-center justify-center relative overflow-hidden">
+        {/* Animated background */}
+        <div className="absolute inset-0 bg-gradient-to-br from-purple-950/20 via-black to-blue-950/20" />
+        <div className="text-center text-muted-foreground relative z-10">
+          <div className="relative mx-auto mb-4 w-20 h-20">
+            <div className="absolute inset-0 rounded-full border-2 border-purple-500/30 animate-spin" style={{ animationDuration: "3s" }} />
+            <div className="absolute inset-2 rounded-full border-2 border-blue-500/20 animate-spin" style={{ animationDuration: "5s", animationDirection: "reverse" }} />
+            <Monitor className="h-8 w-8 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-purple-400/60" />
+          </div>
+          <p className="text-purple-300/80 font-medium">Computador Automação Studios</p>
+          <p className="text-xs mt-1 text-gray-500">
             Inicie um cadastro para ver o bot em ação
           </p>
+          <p className="text-[10px] mt-3 text-gray-600">v4.0 · Powered by Automação Studios</p>
         </div>
       </div>
     );
   }
 
   return (
-    <Tabs defaultValue="vnc" className="w-full h-full flex flex-col">
-      <TabsList className="bg-secondary/50 shrink-0">
-        <TabsTrigger value="vnc" className="gap-1.5">
-          <Monitor className="h-3.5 w-3.5" />
-          Terminal
-        </TabsTrigger>
-        <TabsTrigger value="logs" className="gap-1.5">
-          <ScrollText className="h-3.5 w-3.5" />
-          Logs
-        </TabsTrigger>
-      </TabsList>
-      <TabsContent value="vnc" className="flex-1 mt-2">
-        <div className="vnc-viewer rounded-xl h-full min-h-[400px] relative overflow-hidden">
-          <div
-            ref={containerRef}
-            className="absolute inset-0 bg-black p-4 font-mono text-xs text-green-400 overflow-auto"
-            style={{ fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace" }}
-          >
-            {logLines.map((log: string, i: number) => {
-              // Color coding based on content
-              let textClass = "text-green-300";
-              if (log.includes("✓")) textClass = "text-green-400 font-medium";
-              else if (log.includes("✗")) textClass = "text-red-400 font-medium";
-              else if (log.includes("⚠")) textClass = "text-yellow-400";
-              else if (log.includes("═") || log.includes("───")) textClass = "text-cyan-600";
-              else if (log.includes("BOT AUTOMAÇÃO") || log.includes("RESUMO FINAL")) textClass = "text-cyan-400 font-bold";
-              else if (log.includes("▶ CONTA")) textClass = "text-yellow-300 font-semibold";
-              else if (log.includes("→")) textClass = "text-green-300/70";
-              else if (log.includes("Aguardando")) textClass = "text-yellow-300/80";
+    <div className="h-full flex flex-col">
+      {/* Tab buttons styled like StudiosPlay */}
+      <div className="flex gap-2 mb-2 shrink-0">
+        <button
+          onClick={() => setActiveTab("computador")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            activeTab === "computador"
+              ? "bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg shadow-purple-500/20"
+              : "bg-secondary/50 text-muted-foreground hover:bg-secondary/80"
+          }`}
+        >
+          <Monitor className="h-4 w-4" />
+          Computador Automação
+        </button>
+        <button
+          onClick={() => setActiveTab("logs")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            activeTab === "logs"
+              ? "bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg shadow-purple-500/20"
+              : "bg-secondary/50 text-muted-foreground hover:bg-secondary/80"
+          }`}
+        >
+          <ScrollText className="h-4 w-4" />
+          Meus Logs
+        </button>
+      </div>
 
-              return (
-                <div key={i} className="py-0.5 leading-relaxed">
-                  <span className={textClass}>{log}</span>
-                </div>
-              );
-            })}
-            {botLogs?.status === "running" && (
-              <div className="py-0.5 animate-pulse">
-                <span className="text-yellow-400">
-                  {botLogs?.currentStep ?? "Processando..."}
-                </span>
-                <span className="text-green-600 ml-1 animate-pulse">█</span>
+      {/* Content */}
+      {activeTab === "computador" ? (
+        <div className="flex-1 rounded-xl bg-black border-2 border-green-900/30 relative overflow-hidden min-h-[400px]">
+          {/* VNC Live View - Shows real browser screenshot */}
+          {screenshotUrl && botLogs?.status === "running" ? (
+            <div className="absolute inset-0">
+              <img
+                src={screenshotUrl}
+                alt="Bot Browser View"
+                className="w-full h-full object-contain bg-black"
+                key={screenshotUrl}
+              />
+              {/* Live indicator */}
+              <div className="absolute top-3 right-3 flex items-center gap-1.5 bg-red-600/90 backdrop-blur px-2 py-1 rounded text-[10px] text-white font-bold">
+                <div className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
+                AO VIVO
               </div>
-            )}
-            <div ref={logsEndRef} />
-          </div>
+            </div>
+          ) : (
+            /* Terminal view when no screenshot */
+            <div className="absolute inset-0 flex flex-col">
+              {/* Terminal header */}
+              <div className="bg-gray-900 border-b border-green-900/30 px-3 py-1.5 flex items-center gap-2 shrink-0">
+                <div className="flex gap-1.5">
+                  <div className="h-2.5 w-2.5 rounded-full bg-red-500/70" />
+                  <div className="h-2.5 w-2.5 rounded-full bg-yellow-500/70" />
+                  <div className="h-2.5 w-2.5 rounded-full bg-green-500/70" />
+                </div>
+                <span className="text-[10px] text-gray-500 ml-2 font-mono">automacao-studios@bot:~</span>
+              </div>
+              
+              {/* Terminal content */}
+              <div className="flex-1 overflow-auto p-3 font-mono text-xs text-green-400"
+                style={{ fontFamily: "'JetBrains Mono', 'Fira Code', monospace" }}
+              >
+                {botLogs?.status === "running" && logLines.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full">
+                    <div className="relative w-16 h-16 mb-4">
+                      <div className="absolute inset-0 rounded-full border-2 border-purple-500/50 animate-spin" style={{ animationDuration: "2s" }} />
+                      <div className="absolute inset-2 rounded-full border-2 border-blue-400/30 animate-spin" style={{ animationDuration: "3s", animationDirection: "reverse" }} />
+                    </div>
+                    <p className="text-purple-300/80 text-sm">Configurando ambiente...</p>
+                    <div className="flex gap-1 mt-2">
+                      <div className="h-1.5 w-1.5 rounded-full bg-purple-400 animate-bounce" style={{ animationDelay: "0ms" }} />
+                      <div className="h-1.5 w-1.5 rounded-full bg-purple-400 animate-bounce" style={{ animationDelay: "200ms" }} />
+                      <div className="h-1.5 w-1.5 rounded-full bg-purple-400 animate-bounce" style={{ animationDelay: "400ms" }} />
+                    </div>
+                    {/* Progress bar */}
+                    <div className="w-48 h-1 bg-gray-800 rounded-full mt-4 overflow-hidden">
+                      <div className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full animate-pulse" style={{ width: "60%" }} />
+                    </div>
+                    <p className="text-[10px] text-gray-600 mt-4">v4.0 · Powered by Automação Studios</p>
+                  </div>
+                ) : (
+                  <>
+                    {logLines.map((log: string, i: number) => {
+                      let textClass = "text-green-300";
+                      if (log.includes("✅")) textClass = "text-green-400 font-medium";
+                      else if (log.includes("❌")) textClass = "text-red-400 font-medium";
+                      else if (log.includes("⚠️")) textClass = "text-yellow-400";
+                      else if (log.includes("═") || log.includes("───")) textClass = "text-cyan-600";
+                      else if (log.includes("AUTOMAÇÃO STUDIOS") || log.includes("RESUMO FINAL")) textClass = "text-cyan-400 font-bold";
+                      else if (log.includes("▶ CONTA")) textClass = "text-yellow-300 font-semibold";
+                      else if (log.includes("⌨️")) textClass = "text-green-300/70";
+                      else if (log.includes("⏳") || log.includes("Aguardando")) textClass = "text-yellow-300/80";
+                      else if (log.includes("📱")) textClass = "text-blue-300";
+                      else if (log.includes("📧")) textClass = "text-purple-300";
+                      else if (log.includes("🌐") || log.includes("🔗")) textClass = "text-blue-400";
+                      else if (log.includes("🛡️")) textClass = "text-orange-300";
+                      else if (log.includes("🖱️")) textClass = "text-cyan-300";
+                      else if (log.includes("🔍")) textClass = "text-gray-300";
+                      else if (log.includes("🚀")) textClass = "text-purple-400 font-bold";
+                      else if (log.includes("🏁")) textClass = "text-green-500 font-bold";
+                      else if (log.includes("📊")) textClass = "text-cyan-400 font-bold";
+                      else if (log.includes("💰")) textClass = "text-yellow-400";
+
+                      return (
+                        <div key={i} className="py-0.5 leading-relaxed">
+                          <span className={textClass}>{log}</span>
+                        </div>
+                      );
+                    })}
+                    {botLogs?.status === "running" && (
+                      <div className="py-0.5 animate-pulse">
+                        <span className="text-yellow-400">
+                          {botLogs?.currentStep ?? "Processando..."}
+                        </span>
+                        <span className="text-green-600 ml-1 animate-pulse">█</span>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Status bar */}
           <div className="absolute bottom-0 left-0 right-0 bg-gray-900/95 backdrop-blur border-t border-green-900/30 px-3 py-1.5 flex items-center justify-between text-xs font-mono">
             <div className="flex items-center gap-3">
@@ -373,41 +460,51 @@ function BotViewer({ queueId }: { queueId: number | null }) {
               <span className="text-gray-500">
                 Logs: {logLines.length}
               </span>
+              {screenshotUrl && (
+                <>
+                  <span className="text-gray-600">|</span>
+                  <span className="text-green-500 flex items-center gap-1">
+                    <Eye className="h-3 w-3" /> VNC
+                  </span>
+                </>
+              )}
             </div>
             <span className="text-gray-500">Queue #{queueId}</span>
           </div>
         </div>
-      </TabsContent>
-      <TabsContent value="logs" className="flex-1 mt-2">
-        <div className="bg-card rounded-xl border border-border h-full min-h-[400px] overflow-auto p-4 terminal-log">
-          {logLines.map((log: string, i: number) => (
-            <div key={i} className="py-0.5 text-sm">
-              <span className="text-muted-foreground mr-2">
-                [{String(i + 1).padStart(3, "0")}]
-              </span>
-              <span
-                className={
-                  log.includes("✓")
-                    ? "text-green-400"
-                    : log.includes("✗")
-                    ? "text-red-400"
-                    : log.includes("⚠")
-                    ? "text-yellow-400"
-                    : "text-foreground"
-                }
-              >
-                {log}
-              </span>
-            </div>
-          ))}
-          {logLines.length === 0 && (
-            <div className="text-muted-foreground text-center mt-20">
-              Nenhum log disponível
-            </div>
-          )}
+      ) : (
+        /* Logs tab */
+        <div className="flex-1 bg-card rounded-xl border border-border min-h-[400px] overflow-auto p-4 terminal-log">
+          <div ref={containerRef} className="h-full overflow-auto">
+            {logLines.map((log: string, i: number) => (
+              <div key={i} className="py-0.5 text-sm">
+                <span className="text-muted-foreground mr-2">
+                  [{String(i + 1).padStart(3, "0")}]
+                </span>
+                <span
+                  className={
+                    log.includes("✅")
+                      ? "text-green-400"
+                      : log.includes("❌")
+                      ? "text-red-400"
+                      : log.includes("⚠️")
+                      ? "text-yellow-400"
+                      : "text-foreground"
+                  }
+                >
+                  {log}
+                </span>
+              </div>
+            ))}
+            {logLines.length === 0 && (
+              <div className="text-muted-foreground text-center mt-20">
+                Nenhum log disponível
+              </div>
+            )}
+          </div>
         </div>
-      </TabsContent>
-    </Tabs>
+      )}
+    </div>
   );
 }
 
@@ -592,9 +689,6 @@ export default function Dashboard() {
               <ResizableHandle withHandle />
               <ResizablePanel defaultSize={65} minSize={35}>
                 <div className="p-4 h-full">
-                  <h2 className="text-lg font-semibold mb-4">
-                    Bot em Tempo Real
-                  </h2>
                   <BotViewer queueId={activeQueueId} />
                 </div>
               </ResizablePanel>

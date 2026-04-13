@@ -108,6 +108,7 @@ export const historyRouter = router({
         logs: logs as string[],
         currentStep: session.currentStep,
         status: session.status,
+        screenshotUrl: session.screenshotUrl || null,
       };
     }),
 });

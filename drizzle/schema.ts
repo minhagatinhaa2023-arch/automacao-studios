@@ -83,6 +83,7 @@ export const botSessions = mysqlTable("bot_sessions", {
   status: mysqlEnum("status", ["idle", "running", "completed", "error"]).default("idle").notNull(),
   currentStep: varchar("currentStep", { length: 255 }),
   logMessages: json("logMessages"),
+  screenshotUrl: varchar("screenshotUrl", { length: 1024 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
