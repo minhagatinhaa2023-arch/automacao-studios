@@ -37,3 +37,7 @@
 - [x] Bot: automatic credit refund for failed signups
 - [x] Security: registerSecurityMiddleware integrated into Express server
 - [x] Backend: public REST API endpoints with API-key auth for external integrations
+- [x] Bug: investigar e corrigir falha no teste de cadastro automatizado
+- [x] Bug: OAuth criando usuários duplicados - adicionado UNIQUE INDEX no openId
+- [x] Bug: taxa de falha do bot ajustada - captcha 99%, SMS 98%, signup 95%
+- [x] Bug: créditos restaurados e duplicatas removidas

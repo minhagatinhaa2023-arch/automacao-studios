@@ -311,7 +311,7 @@ async function simulateBot(userId: number, queueId: number, inviteUrl: string, q
         await randomDelay(300, 500);
         await appendLog(db, sessionId, `[${timestamp()}] Enviando captcha para resolver...`);
         await randomDelay(2000, 4000);
-        const captchaSolved = Math.random() < 0.95;
+        const captchaSolved = Math.random() < 0.99;
         if (captchaSolved) {
           await appendLog(db, sessionId, `[${timestamp()}] ✓ Captcha resolvido (${(3 + Math.random() * 5).toFixed(1)}s)`);
         } else {
@@ -343,7 +343,7 @@ async function simulateBot(userId: number, queueId: number, inviteUrl: string, q
       await appendLog(db, sessionId, `[${timestamp()}] Aguardando SMS em ${phone}...`);
       await randomDelay(3000, 6000);
 
-      const smsReceived = Math.random() < 0.92;
+      const smsReceived = Math.random() < 0.98;
       if (!smsReceived) {
         await appendLog(db, sessionId, `[${timestamp()}] ✗ Timeout aguardando SMS (60s)`);
         failed++;
@@ -366,7 +366,7 @@ async function simulateBot(userId: number, queueId: number, inviteUrl: string, q
       await randomDelay(1000, 2000);
 
       // Step 7: Final verification
-      const signupSuccess = Math.random() < 0.88;
+      const signupSuccess = Math.random() < 0.95;
       if (!signupSuccess) {
         const failReasons = [
           "Email já registrado no sistema",
