@@ -56,11 +56,12 @@ function delay(ms: number): Promise<void> {
   return new Promise(r => setTimeout(r, ms));
 }
 
-// Human-like random delay
+// Human-like random delay with MUCH longer base times for anti-detection
 function humanDelay(baseMs: number): Promise<void> {
-  const jitter = baseMs * 0.3;
+  // Increase jitter to 50% for more randomization
+  const jitter = baseMs * 0.5;
   const actual = baseMs + (Math.random() * jitter * 2 - jitter);
-  return delay(Math.max(100, actual));
+  return delay(Math.max(500, actual)); // Minimum 500ms
 }
 
 function ts(): string {
@@ -526,7 +527,7 @@ export async function runRealBot(
         await log(ctx, `[${ts()}] 📧 Criando email temporário...`);
         const mailAccount = await createMailTmAccount(mailDomain);
         await log(ctx, `[${ts()}]   📬 Email: ${mailAccount.email}`);
-        await humanDelay(800);
+        await humanDelay(3000 + randInt(1000, 3000)); // Much longer delay after email creation
 
         if (await isCancelled(ctx)) {
           await log(ctx, `[${ts()}] ⚠️ Cancelado pelo usuário`);
@@ -546,7 +547,7 @@ export async function runRealBot(
         // Step 3: Navigate to invite link
         await log(ctx, `[${ts()}] 🔗 Navegando para convite...`);
         await page.goto(inviteUrl, { waitUntil: "networkidle2", timeout: 30000 });
-        await humanDelay(3000);
+        await humanDelay(5000 + randInt(2000, 4000)); // Much longer delay after page load
         
         await captureScreenshot(ctx, page, "page_loaded");
         
@@ -570,7 +571,7 @@ export async function runRealBot(
         }
         
         await log(ctx, `[${ts()}]   ⌨️ Email: ${mailAccount.email}`);
-        await humanDelay(1000);
+        await humanDelay(2000 + randInt(1000, 2000)); // Longer delay after email entry
         await captureScreenshot(ctx, page, "email_set");
 
         // Step 5: Wait for Turnstile to auto-resolve + button to enable
@@ -578,7 +579,7 @@ export async function runRealBot(
         
         let continueReady = false;
         for (let attempt = 0; attempt < 20; attempt++) {
-          await humanDelay(2000);
+          await humanDelay(3000 + randInt(1000, 2000)); // Longer Turnstile wait
           
           const state = await page.evaluate(() => {
             const t = document.querySelector('[name="cf-turnstile-response"]') as HTMLInputElement;
@@ -633,7 +634,7 @@ export async function runRealBot(
           await log(ctx, `[${ts()}]   ✅ Continue clicado`);
         }
         
-        await humanDelay(5000);
+        await humanDelay(8000 + randInt(2000, 4000)); // Much longer after Continue
         await captureScreenshot(ctx, page, "after_continue");
 
         // Step 7: Handle password page
@@ -660,7 +661,7 @@ export async function runRealBot(
             await log(ctx, `[${ts()}]   ⚠️ Campo de senha não encontrado`);
           }
           
-          await humanDelay(1500);
+          await humanDelay(3000 + randInt(1000, 2000)); // Longer delay after password entry
           
           // Click Continue for password
           await page.evaluate(() => {
@@ -673,7 +674,7 @@ export async function runRealBot(
           });
           
           await log(ctx, `[${ts()}]   ✅ Continue (senha) clicado`);
-          await humanDelay(5000);
+          await humanDelay(8000 + randInt(2000, 4000)); // Much longer after password Continue
           await captureScreenshot(ctx, page, "after_password");
         }
 
@@ -726,7 +727,7 @@ export async function runRealBot(
           }
           
           await log(ctx, `[${ts()}]   ✅ Código inserido`);
-          await humanDelay(1000);
+          await humanDelay(3000 + randInt(1000, 2000)); // Longer delay before verify
           
           // Click Verify
           await page.evaluate(() => {
@@ -739,7 +740,7 @@ export async function runRealBot(
           });
           
           await log(ctx, `[${ts()}]   ✅ Verify clicado`);
-          await humanDelay(8000);
+          await humanDelay(10000 + randInt(2000, 5000)); // Much longer after email verify
           await captureScreenshot(ctx, page, "after_email_verify");
           
           // Check if phone verification is now needed
@@ -762,8 +763,8 @@ export async function runRealBot(
           await log(ctx, `[${ts()}]   ℹ️ Nenhuma verificação adicional detectada`);
         }
 
-        // Step 9: Check final result
-        await humanDelay(3000);
+        // Step 9: Check final result - wait longer to avoid pattern detection
+        await humanDelay(15000 + randInt(5000, 10000)); // Very long delay to simulate initial use
         const finalUrl = page.url();
         const finalText = await page.evaluate(() => document.body?.innerText || "");
         
@@ -816,7 +817,7 @@ export async function runRealBot(
         // Navigate to blank page to reset state for next iteration
         if (i < quantity - 1) {
           try { await page.goto('about:blank', { timeout: 5000 }); } catch {}
-          const waitTime = randInt(5000, 15000);
+          const waitTime = randInt(15000, 30000); // Much longer wait between accounts
           await log(ctx, `[${ts()}] ⏳ Aguardando ${Math.round(waitTime/1000)}s antes da próxima conta...`);
           await delay(waitTime);
         }
@@ -940,7 +941,7 @@ async function handlePhoneVerification(ctx: BotContext, page: any, smsApiKey: st
     }
   }
   
-  await humanDelay(1000);
+  await humanDelay(3000 + randInt(1000, 2000)); // Longer delay after phone entry
   await captureScreenshot(ctx, page, "phone_filled");
   
   // Click Send code
@@ -954,7 +955,7 @@ async function handlePhoneVerification(ctx: BotContext, page: any, smsApiKey: st
     if (btn) btn.click();
   });
   
-  await humanDelay(3000);
+  await humanDelay(5000 + randInt(1000, 2000)); // Longer delay after Send code
   
   // Wait for SMS
   await log(ctx, `[${ts()}] 📱 Aguardando SMS... (timeout: 120s)`);
@@ -992,7 +993,7 @@ async function handlePhoneVerification(ctx: BotContext, page: any, smsApiKey: st
     await page.keyboard.type(smsCode);
   }
   
-  await humanDelay(1000);
+  await humanDelay(3000 + randInt(1000, 2000)); // Longer delay before SMS verify
   
   // Click verify
   await page.evaluate(() => {
@@ -1005,6 +1006,6 @@ async function handlePhoneVerification(ctx: BotContext, page: any, smsApiKey: st
   });
   
   await log(ctx, `[${ts()}]   ✅ Código verificado`);
-  await humanDelay(5000);
+  await humanDelay(10000 + randInt(2000, 5000)); // Much longer after SMS verify
   await captureScreenshot(ctx, page, "sms_verified");
 }

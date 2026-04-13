@@ -71,3 +71,4 @@
 - [x] Bug: bot dando falha - corrigido: reutilizar página em vez de newPage() que causava Connection closed
 - [x] Testar o bot após o fix de page reuse e confirmar que o erro "Protocol error: Connection closed" não ocorre mais
 - [x] Feature: remover validação de créditos - permitir usar bot mesmo sem créditos
+- [ ] Bug: contas sendo banidas ao criar - implementar anti-detecção avan\u00e7ada para evitar bloqueio do Manus
