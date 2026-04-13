@@ -452,6 +452,7 @@ export async function runRealBot(
       throw new Error("puppeteer-real-browser não disponível. Execute no ambiente de desenvolvimento.");
     }
     
+    let mainPage: any = null;
     try {
       const result = await connectFn({
         headless: "auto",
@@ -464,11 +465,7 @@ export async function runRealBot(
         ],
       });
       browser = result.browser;
-      
-      // Use the default page from connect
-      const pages = await browser.pages();
-      const defaultPage = pages[0];
-      if (defaultPage) await defaultPage.close().catch(() => {});
+      mainPage = result.page; // Use the page returned by connect()
     } catch (launchErr: any) {
       await log(ctx, `[${ts()}] ❌ Falha ao iniciar navegador: ${launchErr.message}`);
       throw new Error(`Navegador não disponível: ${launchErr.message}`);
@@ -536,15 +533,15 @@ export async function runRealBot(
           break;
         }
 
-        // Step 2: Open new page with anti-detection
-        await log(ctx, `[${ts()}] 🌐 Abrindo aba stealth...`);
-        page = await browser.newPage();
-        await page.setViewport(vp);
+        // Step 2: Use the main page from connect (no newPage to avoid connection closed)
+        await log(ctx, `[${ts()}] 🌐 Configurando aba stealth...`);
+        page = mainPage;
+        try { await page.setViewport(vp); } catch {}
         
         // Apply fingerprint spoofing
         await applyFingerprint(page);
         
-        await page.setExtraHTTPHeaders({ "Accept-Language": lang });
+        try { await page.setExtraHTTPHeaders({ "Accept-Language": lang }); } catch {}
 
         // Step 3: Navigate to invite link
         await log(ctx, `[${ts()}] 🔗 Navegando para convite...`);
@@ -815,10 +812,10 @@ export async function runRealBot(
           .set({ processed, failed })
           .where(eq(signupQueue.id, queueId));
 
-        try { if (page) await page.close(); } catch {}
-        
-        // Random delay between accounts to look natural
+        // Don't close the page - reuse it for next account
+        // Navigate to blank page to reset state for next iteration
         if (i < quantity - 1) {
+          try { await page.goto('about:blank', { timeout: 5000 }); } catch {}
           const waitTime = randInt(5000, 15000);
           await log(ctx, `[${ts()}] ⏳ Aguardando ${Math.round(waitTime/1000)}s antes da próxima conta...`);
           await delay(waitTime);
@@ -841,7 +838,8 @@ export async function runRealBot(
           .set({ processed, failed })
           .where(eq(signupQueue.id, queueId));
 
-        try { if (page) await page.close(); } catch {}
+        // Navigate to blank to reset for next attempt
+        try { if (page) await page.goto('about:blank', { timeout: 5000 }); } catch {}
         await humanDelay(2000);
       }
     }

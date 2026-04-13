@@ -68,3 +68,5 @@
 - [x] Anti-detecção: variar padrão de navegação (scroll, hover, focus/blur)
 - [x] Integrar fluxo completo testado no realBot.ts (email→turnstile→senha→código email→phone→SMS)
 - [x] Limpar arquivos de teste temporários
+- [x] Bug: bot dando falha - corrigido: reutilizar página em vez de newPage() que causava Connection closed
+- [ ] Testar o bot após o fix de page reuse e confirmar que o erro "Protocol error: Connection closed" não ocorre mais
