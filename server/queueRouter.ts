@@ -26,20 +26,9 @@ export const queueRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable" });
 
       // Check credits
-      const [userRow] = await db.select({ credits: users.credits }).from(users).where(eq(users.id, ctx.user.id)).limit(1);
+      // No credit validation - allow free usage
       const totalCost = input.quantity * COST_PER_SIGNUP;
-
-      if ((userRow?.credits ?? 0) < totalCost) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: `Créditos insuficientes. Necessário: ${totalCost}, disponível: ${userRow?.credits ?? 0}`,
-        });
-      }
-
-      // Deduct credits
-      await db.update(users)
-        .set({ credits: sql`${users.credits} - ${totalCost}` })
-        .where(eq(users.id, ctx.user.id));
+      // Credits are optional - bot runs for free
 
       // Create queue entry
       const priority = input.quantity === 1 ? 1 : 0;
@@ -59,7 +48,7 @@ export const queueRouter = router({
       return {
         queueId,
         totalCost,
-        message: `${input.quantity} cadastro(s) adicionado(s) à fila. Custo: ${totalCost} créditos. Bot REAL iniciado.`,
+        message: `${input.quantity} cadastro(s) adicionado(s) à fila. Bot REAL iniciado (uso gratuito).`,
       };
     }),
 
@@ -102,7 +91,7 @@ export const queueRouter = router({
         .set({ status: "cancelled" })
         .where(eq(signupQueue.id, input.queueId));
 
-      return { refund, message: `Cancelado. ${refund} créditos devolvidos.` };
+      return { refund: 0, message: `Cancelado (créditos não reembolsados em modo gratuito).` };
     }),
 
   /** Get status of a specific queue item */
