@@ -1,0 +1,35 @@
+# Project TODO
+
+- [x] Database schema: users extended with credits/role, queue table, history table, accounts table, api_keys table
+- [x] Backend: credit system (500 per signup, validate before queue)
+- [x] Backend: queue system with priority for single signups
+- [x] Backend: URL validation (only manus.im/invitation/)
+- [x] Backend: batch limit max 10 per request
+- [x] Backend: temp email generation (.shop domains)
+- [x] Backend: virtual phone number generation
+- [x] Backend: bot automation simulation with status updates
+- [x] Backend: bot live view via polling (simulated VNC terminal)
+- [x] Backend: history CRUD (list, delete failures)
+- [x] Backend: admin panel routes (all users, all queues)
+- [x] Backend: API key generation and management per user
+- [x] Backend: tRPC endpoints for all features (balance, start signup, status, cancel, accounts)
+- [x] Frontend: dark theme matching StudiosPlay (dark bg, colorful gradient cards)
+- [x] Frontend: stats cards (Credits, Success, Accounts Created, Failures, Total)
+- [x] Frontend: tabs "Criar Contas Manus" and "Fila"
+- [x] Frontend: signup form (URL input + quantity input + start button)
+- [x] Frontend: real-time status display (Waiting, Complete, Failed)
+- [x] Frontend: VNC viewer panel embedded (terminal-style live view)
+- [x] Frontend: resizable split panel (form left, VNC right)
+- [x] Frontend: logs tab alongside VNC tab
+- [x] Frontend: history table with date, status badges, reason, delete button
+- [x] Frontend: OAuth login page
+- [x] Frontend: admin dashboard with user management and queue overview
+- [x] Frontend: API key page with documentation
+- [x] Frontend: sidebar with username, credits display, and logout
+- [x] Frontend: recharge credits modal (placeholder, no payment)
+- [ ] Security: CORS restricted to own domain
+- [ ] Security: rate limiting on API endpoints
+- [ ] Security: HTTP security headers (HSTS, CSP, X-Frame-Options)
+- [ ] Security: CSRF protection
+- [x] Security: URL validation at queue entry
+- [x] Tests: vitest for URL validation, email/phone/password generation, credit cost, queue priority, input validation
