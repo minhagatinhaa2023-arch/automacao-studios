@@ -41,3 +41,14 @@
 - [x] Bug: OAuth criando usuários duplicados - adicionado UNIQUE INDEX no openId
 - [x] Bug: taxa de falha do bot ajustada - captcha 99%, SMS 98%, signup 95%
 - [x] Bug: créditos restaurados e duplicatas removidas
+- [x] Bug: créditos não aparecem na conta do usuário após adição manual (era simulação, agora é real)
+- [x] Automação real: instalar puppeteer-real-browser com bypass Turnstile
+- [x] Automação real: integrar mail.tm API para emails temporários reais
+- [x] Automação real: SMS não necessário (Manus usa verificação por email)
+- [x] Automação real: Turnstile resolvido automaticamente pelo puppeteer-real-browser (grátis)
+- [x] Automação real: bot acessa link de convite manus.im de verdade
+- [x] Automação real: preenche formulário de cadastro real com digitação simulada
+- [x] Automação real: verifica email real via mail.tm polling
+- [x] Automação real: completa cadastro e insere código de verificação
+- [x] Frontend: terminal mostra progresso real do bot em tempo real
+- [x] Configurar secrets: nenhuma API key necessária (tudo gratuito)

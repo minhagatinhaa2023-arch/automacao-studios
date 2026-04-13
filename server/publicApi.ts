@@ -6,10 +6,8 @@ import {
   COST_PER_SIGNUP,
   MAX_BATCH,
   isValidManusUrl,
-  generateTempEmail,
-  generateVirtualPhone,
-  generatePassword,
 } from "./botUtils";
+import { runRealBot } from "./realBot";
 
 const apiRouter = Router();
 
@@ -122,8 +120,8 @@ apiRouter.post("/signup", async (req: Request, res: Response) => {
 
   const queueId = (insertResult as any).insertId;
 
-  // Start bot simulation in background (import dynamically to avoid circular deps)
-  startBotSimulation(user.id, queueId, inviteUrl, qty, db);
+  // Start REAL bot automation in background
+  runRealBot(user.id, queueId, inviteUrl, qty, db);
 
   res.json({
     success: true,
@@ -309,95 +307,6 @@ apiRouter.get("/history", async (req: Request, res: Response) => {
   });
 });
 
-// ── Bot simulation helper (duplicated from queueRouter to avoid circular imports) ──
-function delay(ms: number): Promise<void> {
-  return new Promise(r => setTimeout(r, ms));
-}
 
-function randomDelay(min: number, max: number): Promise<void> {
-  return delay(min + Math.random() * (max - min));
-}
-
-function ts(): string {
-  return new Date().toISOString().replace("T", " ").split(".")[0];
-}
-
-async function appendLog(db: any, sessionId: number, message: string) {
-  await db.update(botSessions)
-    .set({
-      currentStep: message,
-      logMessages: sql`JSON_ARRAY_APPEND(COALESCE(${botSessions.logMessages}, JSON_ARRAY()), '$', ${message})`,
-    })
-    .where(eq(botSessions.id, sessionId));
-}
-
-async function isCancelled(db: any, queueId: number): Promise<boolean> {
-  const [queueItem] = await db.select({ status: signupQueue.status })
-    .from(signupQueue)
-    .where(eq(signupQueue.id, queueId))
-    .limit(1);
-  return queueItem?.status === "cancelled";
-}
-
-async function startBotSimulation(userId: number, queueId: number, inviteUrl: string, quantity: number, db: any) {
-  try {
-    const [sessionInsert] = await db.insert(botSessions).values({
-      userId, queueId, status: "running",
-      currentStep: "Inicializando...",
-      logMessages: JSON.stringify([]),
-    });
-    const sessionId = (sessionInsert as any).insertId;
-
-    await db.update(signupQueue).set({ status: "processing" }).where(eq(signupQueue.id, queueId));
-
-    await appendLog(db, sessionId, `[${ts()}] BOT AUTOMAÇÃO STUDIOS - API`);
-    await appendLog(db, sessionId, `[${ts()}] Iniciando ${quantity} cadastro(s)...`);
-    await randomDelay(500, 1000);
-
-    let processed = 0;
-    let failed = 0;
-
-    for (let i = 0; i < quantity; i++) {
-      if (await isCancelled(db, queueId)) {
-        await db.update(botSessions).set({ status: "completed", currentStep: "Cancelado" }).where(eq(botSessions.id, sessionId));
-        return;
-      }
-
-      const email = generateTempEmail();
-      const phone = generateVirtualPhone();
-      const password = generatePassword();
-
-      await appendLog(db, sessionId, `[${ts()}] ▶ Conta ${i + 1}/${quantity}: ${email}`);
-      await randomDelay(2000, 5000);
-
-      const isSuccess = Math.random() < 0.85;
-      if (isSuccess) {
-        processed++;
-        await db.insert(signupHistory).values({ userId, queueId, email, password, phone, status: "success" });
-        await db.insert(manusAccounts).values({ userId, email, password, phone, status: "success" });
-        await appendLog(db, sessionId, `[${ts()}] ✓ Conta criada: ${email}`);
-      } else {
-        failed++;
-        const reason = "Erro durante cadastro";
-        await db.insert(signupHistory).values({ userId, queueId, email, phone, status: "failed", reason });
-        await appendLog(db, sessionId, `[${ts()}] ✗ Falha: ${reason}`);
-      }
-
-      await db.update(signupQueue).set({ processed, failed }).where(eq(signupQueue.id, queueId));
-    }
-
-    if (failed > 0) {
-      const refund = failed * COST_PER_SIGNUP;
-      await db.update(users).set({ credits: sql`${users.credits} + ${refund}` }).where(eq(users.id, userId));
-    }
-
-    const finalStatus = failed === quantity ? "failed" : "completed";
-    await db.update(signupQueue).set({ status: finalStatus, processed, failed }).where(eq(signupQueue.id, queueId));
-    await db.update(botSessions).set({ status: "completed", currentStep: `Concluído: ${processed} sucesso, ${failed} falha(s)` }).where(eq(botSessions.id, sessionId));
-  } catch (error) {
-    console.error("[API Bot Error]", error);
-    try { await db.update(signupQueue).set({ status: "failed" }).where(eq(signupQueue.id, queueId)); } catch {}
-  }
-}
 
 export { apiRouter };
